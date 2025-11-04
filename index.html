@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Charity Water Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Title and Start Screen -->
+    <div id="title-screen" class="overlay">
+        <div class="panel">
+            <h1>Dungeon of Thirst — inspired by charity: water</h1>
+            <p>Type the words to defeat challenges and help bring clean water to communities.</p>
+            <p class="note site-note" aria-hidden="false">
+                Tip: Red words are dangerous obstacles — it's crucial to type them correctly. Missing one will cost you points.
+            </p>
+            <!-- Difficulty selector -->
+            <div id="difficulty" class="difficulty" aria-label="Choose difficulty">
+                <button id="diff-easy" class="btn">Easy</button>
+                <button id="diff-medium" class="btn active">Medium</button>
+                <button id="diff-hard" class="btn">Hard</button>
+            </div>
+            <div style="height:8px"></div>
+            <button id="start-btn" class="btn">Start</button>
+        </div>
+    </div>
+
+    <!-- Main Game Area -->
+    <div id="game" class="hidden">
+        <header class="hud">
+            <div id="score">Score: 0</div>
+            <div id="room">Room: 1</div>
+            <div id="health" class="health">
+                <!-- hearts filled by JS -->
+            </div>
+            <!-- Reset button lets player restart immediately -->
+            <button id="reset-btn" class="btn" aria-label="Reset game">Reset</button>
+        </header>
+
+        <main class="game-area">
+            <div id="enemy-box" class="enemy-box">
+                <div id="enemy-word" class="enemy-word">--</div>
+                <div id="countdown" class="countdown">--</div>
+            </div>
+
+            <!-- in-game explanatory note shown when an obstacle (red word) appears -->
+            <div id="obstacle-note" class="obstacle-note hidden" aria-live="polite">
+                Red word! Type this carefully — missing it will deduct points.
+            </div>
+
+            <div class="input-area">
+                <input id="word-input" type="text" autocomplete="off" placeholder="Type the enemy word here" aria-label="Type the enemy word here" />
+                <div id="feedback" class="feedback"></div>
+            </div>
+            <!-- Return Home button: appears only after a win -->
+            <div style="margin-top:10px;">
+                <button id="home-btn" class="btn hidden" aria-label="Return to title screen">Return Home</button>
+            </div>
+        </main>
+    </div>
+
+    <!-- include confetti library (canvas-confetti) -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

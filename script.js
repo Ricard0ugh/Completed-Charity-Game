@@ -15,17 +15,53 @@ const roomEl = document.getElementById('room');
 const countdownEl = document.getElementById('countdown');
 const obstacleNote = document.getElementById('obstacle-note');
 const homeBtn = document.getElementById('home-btn');
+// footer is hidden by default in the HTML and will be shown when the player completes the game
+const footerEl = document.querySelector('.site-footer');
+// Errors tracking: count when typed input diverges from expected word prefix (once per mistake)
+let errors = 0;
+let hasActiveError = false;
+const errorsEl = document.getElementById('errors');
+// small score penalty for each typing error
+const errorPenalty = 2;
+// Audio: play when a word is successfully typed (place the file at /mp3/game-start-317318.mp3)
+const wordCompleteAudio = new Audio('mp3/game-start-317318.mp3');
+wordCompleteAudio.preload = 'auto';
+
+// Milestone templates (fractions of total rooms). We compute numeric thresholds at runtime
+// so "halfway" means halfway through the rooms for the current totalRooms.
+const milestoneTemplates = [
+	{ fraction: 0.25, message: 'Nice start!' },
+	{ fraction: 0.5,  message: 'Halfway there!' },       // true halfway (rooms)
+	{ fraction: 0.75, message: 'Almost done!' },
+	{ fraction: 1.0,  message: 'You completed the dungeon!' }
+];
+let milestones = [];             // computed {score, message} entries
+const shownMilestones = new Set();
+
+// compute numeric milestone thresholds based on totalRooms and per-room points (10)
+function computeMilestones() {
+	const pointsPerRoom = 10;
+	milestones = milestoneTemplates.map(t => {
+		// determine the room index that corresponds to the fraction (round up to next room)
+		const roomThreshold = Math.ceil(totalRooms * t.fraction);
+		// convert to score
+		const scoreThreshold = roomThreshold * pointsPerRoom;
+		return { score: scoreThreshold, message: t.message };
+	});
+	// reset which milestones we've already shown
+	shownMilestones.clear();
+}
 
 // Game variables
 let score = 0;
 let health = 3;
 let room = 1;
-const totalRooms = 5;
+const totalRooms = 8;          // increased from 5 -> game lasts longer (more rooms)
 let currentWord = '';
 let timeoutId = null;
 let countdownId = null;
 // time per room is adjustable by difficulty
-let timePerRoom = 9; // seconds (default medium)
+let timePerRoom = 12; // seconds (default medium increased from 9 -> 12)
 // track whether the first enemy/timer has started
 let gameStarted = false;
 // current difficulty: 'easy' | 'medium' | 'hard'
@@ -70,8 +106,10 @@ function pickWord() {
 
 // Update HUD: score, health, room
 function updateHUD() {
-    scoreEl.innerText = `Score: ${score}`;
-    roomEl.innerText = `Room: ${room}`;
+    // inject small label/value markup into the existing containers so CSS can style them
+    if (scoreEl) scoreEl.innerHTML = `<div class="hud-label">Score</div><div class="hud-value">${score}</div>`;
+    if (roomEl)  roomEl.innerHTML  = `<div class="hud-label">Room</div><div class="hud-value">${room}</div>`;
+    if (errorsEl) errorsEl.innerHTML = `<div class="hud-label">Errors</div><div class="hud-value">${errors}</div>`;
     // render hearts
     healthEl.innerHTML = '';
     for (let i = 0; i < 3; i++) {
@@ -82,7 +120,8 @@ function updateHUD() {
 }
 
 // Show feedback message briefly
-function showFeedback(text, good) {
+function showFeedback(text, good, duration = 900) {
+    // duration in ms controls how long the message stays
     feedbackEl.innerText = text;
     feedbackEl.style.color = good ? 'green' : 'crimson';
     // flash enemy box
@@ -90,10 +129,10 @@ function showFeedback(text, good) {
     setTimeout(() => {
         enemyBox.classList.remove('flash-good', 'flash-bad');
     }, 550);
-    // clear feedback after a short time
+    // clear feedback after requested duration (guard against overwriting later messages)
     setTimeout(() => {
         if (feedbackEl.innerText === text) feedbackEl.innerText = '';
-    }, 900);
+    }, duration);
 }
 
 // Start per-room countdown and timeout
@@ -148,17 +187,39 @@ function loadEnemy(startNow = true) {
         inputEl.focus();
         startTimer();
     }
+    // reset per-word error flag when a new word appears
+    hasActiveError = false;
+    if (inputEl) inputEl.classList.remove('input-error');
 }
 
 // Handle correct typing
 function handleCorrect() {
+    // play success sound (user gesture from typing ensures browsers allow play)
+    try {
+        wordCompleteAudio.currentTime = 0;
+        wordCompleteAudio.play().catch(() => { /* ignore play errors */ });
+    } catch (err) {
+        // older browsers or missing file — ignore
+    }
     clearTimeout(timeoutId);
     clearInterval(countdownId);
     score += 10;
+    // normal feedback
     showFeedback('Correct!', true);
     // advance to next room
     room += 1;
     updateHUD();
+
+    // Milestone check: show the first milestone that matches the new score (only once)
+    for (const m of milestones) {
+        if (score >= m.score && !shownMilestones.has(m.score)) {
+            shownMilestones.add(m.score);
+            // show milestone a bit longer so players notice it
+            showFeedback(m.message, true, 1600);
+            if (typeof launchConfetti === 'function') launchConfetti(12);
+            break;
+        }
+    }
 
     // Check win condition
     if (room > totalRooms) {
@@ -226,6 +287,13 @@ function showEndScreen(win) {
             homeBtn.classList.remove('hidden');
             homeBtn.focus();
         }
+        // reveal the footer now that the player has completed the game
+        if (footerEl) {
+            footerEl.classList.remove('hidden');
+            // optional: move keyboard focus to the first link for accessibility
+            const firstLink = footerEl.querySelector('a');
+            if (firstLink) firstLink.focus();
+        }
         // do NOT auto-reset — wait for the player's action
     } else {
         showFeedback('Game Over — you ran out of hearts.', false);
@@ -241,6 +309,15 @@ function resetToTitle() {
     // clear timers
     clearTimeout(timeoutId);
     clearInterval(countdownId);
+    // hide footer again when returning to title
+    if (footerEl) footerEl.classList.add('hidden');
+    // reset error tracking
+    errors = 0;
+    hasActiveError = false;
+    if (errorsEl) errorsEl.innerText = `Errors: ${errors}`;
+    if (inputEl) inputEl.classList.remove('input-error');
+    // clear shown milestones so they can appear in the next playthrough
+    shownMilestones.clear();
     // reset variables
     score = 0;
     health = 3;
@@ -322,7 +399,8 @@ inputEl.addEventListener('keydown', (e) => {
 // Auto-match while typing: if exact match, accept immediately
 inputEl.addEventListener('input', () => {
     const typedRaw = inputEl.value;
-    const typed = typedRaw.trim();
+    // do not trim here — spaces matter while typing character-by-character
+    const typed = typedRaw;
     // If the game hasn't started yet, start the round on first typed character
     if (!gameStarted) {
         if (typed.length === 0) return;
@@ -331,16 +409,117 @@ inputEl.addEventListener('input', () => {
         startTimer();
         // continue and allow immediate auto-match check below
     }
+    // Mistype detection: if current typed string doesn't match the expected prefix, count an error
+    if (typed.length > 0 && currentWord) {
+        const expectedPrefix = currentWord.slice(0, typed.length);
+        if (typed.toLowerCase() !== expectedPrefix.toLowerCase()) {
+            // only count once per mistaken stretch until corrected
+            if (!hasActiveError) {
+                hasActiveError = true;
+                errors += 1;
+                // apply a small score penalty but don't go below zero
+                const prevScore = score;
+                score = Math.max(0, score - errorPenalty);
+                // update HUD so the score and errors are shown immediately
+                updateHUD();
+                // show feedback including the penalty amount
+                showFeedback(`Mistyped! -${prevScore - score} pts`, false);
+                // mark input visually
+                if (inputEl) inputEl.classList.add('input-error');
+                // continue (errorsEl is updated by updateHUD)
+                // note: we avoid double-updating errorsEl here since updateHUD handles it
+            }
+        } else {
+            // user corrected the input back to a valid prefix
+            if (hasActiveError) {
+                hasActiveError = false;
+                if (inputEl) inputEl.classList.remove('input-error');
+            }
+        }
+    }
     if (typed.length > 0 && typed.toLowerCase() === currentWord.toLowerCase()) {
         handleCorrect();
     }
 });
 
+// small helper: create a ripple effect inside a button (works for mouse & touch via pointer events)
+function attachButtonRipples() {
+    // run once for all .btn elements
+    document.querySelectorAll('.btn').forEach(btn => {
+        // use pointerdown so it covers touch and mouse
+        btn.addEventListener('pointerdown', (ev) => {
+            // don't create ripples for keyboard activation (Enter/Space) — pointer events cover direct touch/mouse
+            const rect = btn.getBoundingClientRect();
+            // create span element for ripple
+            const ripple = document.createElement('span');
+            ripple.className = 'ripple';
+            // calculate position so ripple originates from the interaction point
+            const size = Math.max(rect.width, rect.height) * 1.2;
+            ripple.style.width = ripple.style.height = `${size}px`;
+            // center the ripple at the pointer location
+            const x = ev.clientX - rect.left - size / 2;
+            const y = ev.clientY - rect.top - size / 2;
+            ripple.style.left = `${x}px`;
+            ripple.style.top = `${y}px`;
+            // append and let CSS animation handle the rest
+            btn.appendChild(ripple);
+            // remove element after animation completes to keep DOM clean
+            setTimeout(() => {
+                ripple.remove();
+            }, 700);
+        }, { passive: true });
+    });
+}
+
+// improved mobile keyboard handling:
+// - scroll the input into view when focused (helps some mobile keyboards avoid covering the field)
+// - blur the input when returning to the title so keyboard hides
+function attachMobileKeyboardHelpers() {
+    if (!inputEl) return;
+    inputEl.addEventListener('focus', () => {
+        // small delay allows the virtual keyboard to appear first on some devices
+        setTimeout(() => {
+            try {
+                inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } catch (e) { /* ignore if not supported */ }
+        }, 250);
+    });
+    // When starting the game, we already call inputEl.focus(); also scroll to make sure keyboard shows correctly
+    const originalStartGame = startGame;
+    startGame = function() {
+        originalStartGame();
+        // small scroll after we reveal the game area and focus input
+        setTimeout(() => {
+            if (inputEl) {
+                try { inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+            }
+        }, 280);
+    };
+
+    // Ensure keyboard hides when returning to title
+    const originalResetToTitle = resetToTitle;
+    resetToTitle = function() {
+        if (inputEl) {
+            inputEl.blur();
+        }
+        originalResetToTitle();
+    };
+}
+
+// call these helpers once DOM is ready (initOnLoad already runs on DOMContentLoaded)
+const originalInit = initOnLoad;
+initOnLoad = function() {
+    originalInit();
+    // attach micro-interactions + mobile helpers
+    attachButtonRipples();
+    attachMobileKeyboardHelpers();
+};
+
 // Initialize on DOMContentLoaded
 function initOnLoad() {
     // Guard: if essential elements are missing, log and do nothing further
     if (!titleScreen || !gameEl || !startBtn || !inputEl) {
-        console.warn('Dungeon of Thirst: some DOM elements are missing, aborting init.');
+        console.warn('WaterQuest: some DOM elements are missing, aborting init.');
         return;
     }
 
@@ -368,23 +547,25 @@ function initOnLoad() {
     const diffMedium = document.getElementById('diff-medium');
     const diffHard = document.getElementById('diff-hard');
     function applyDifficulty(d) {
-        difficulty = d;
-        // adjust timer len per difficulty
-        if (difficulty === 'easy') timePerRoom = 12;
-        else if (difficulty === 'medium') timePerRoom = 9;
-        else if (difficulty === 'hard') timePerRoom = 6;
-        // update UI active state if buttons available
-        [diffEasy, diffMedium, diffHard].forEach(btn => {
-            if (!btn) return;
-            btn.classList.toggle('active', btn.id === `diff-${d}`);
-        });
-    }
+         difficulty = d;
+         // adjust timer len per difficulty
+        if (difficulty === 'easy') timePerRoom = 15;  // more forgiving on easy
+        else if (difficulty === 'medium') timePerRoom = 12; // default medium increased
+        else if (difficulty === 'hard') timePerRoom = 9;   // hard still faster but slightly longer than before
+         // update UI active state if buttons available
+         [diffEasy, diffMedium, diffHard].forEach(btn => {
+             if (!btn) return;
+             btn.classList.toggle('active', btn.id === `diff-${d}`);
+         });
+     }
     // attach listeners if elements exist
     if (diffEasy) diffEasy.addEventListener('click', () => applyDifficulty('easy'));
     if (diffMedium) diffMedium.addEventListener('click', () => applyDifficulty('medium'));
     if (diffHard) diffHard.addEventListener('click', () => applyDifficulty('hard'));
     // set default
     applyDifficulty(difficulty);
+    // compute numeric milestones based on the current totalRooms
+    computeMilestones();
 
     // Attach Start button listener now that DOM is ready
     startBtn.addEventListener('click', () => {

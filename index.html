@@ -10,7 +10,11 @@
     <!-- Title and Start Screen -->
     <div id="title-screen" class="overlay">
         <div class="panel">
-            <h1>Dungeon of Thirst — inspired by charity: water</h1>
+            <h1>WaterQuest — inspired by charity: water</h1>
+            <!-- decorative/branding image placed in the same start card -->
+            <figure class="title-figure" aria-hidden="false">
+                <img class="title-img" src="img/water-can-transparent.png" alt="Water can illustration" />
+            </figure>
             <p>Type the words to defeat challenges and help bring clean water to communities.</p>
             <p class="note site-note" aria-hidden="false">
                 Tip: Red words are dangerous obstacles — it's crucial to type them correctly. Missing one will cost you points.
@@ -31,6 +35,7 @@
         <header class="hud">
             <div id="score">Score: 0</div>
             <div id="room">Room: 1</div>
+            <div id="errors" aria-live="polite">Errors: 0</div>
             <div id="health" class="health">
                 <!-- hearts filled by JS -->
             </div>
@@ -50,8 +55,18 @@
             </div>
 
             <div class="input-area">
-                <input id="word-input" type="text" autocomplete="off" placeholder="Type the enemy word here" aria-label="Type the enemy word here" />
-                <div id="feedback" class="feedback"></div>
+                <!-- mobile-friendly attributes: no autocorrect, explicit inputmode & enterkeyhint -->
+                <input id="word-input"
+                       type="text"
+                       autocomplete="off"
+                       autocorrect="off"
+                       autocapitalize="off"
+                       spellcheck="false"
+                       inputmode="text"
+                       enterkeyhint="done"
+                       placeholder="Type the enemy word here"
+                       aria-label="Type the enemy word here" />
+                 <div id="feedback" class="feedback"></div>
             </div>
             <!-- Return Home button: appears only after a win -->
             <div style="margin-top:10px;">
@@ -62,6 +77,23 @@
 
     <!-- include confetti library (canvas-confetti) -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+
+    <!-- Footer: links to charity: water pages (hidden until player completes the game) -->
+    <footer class="site-footer hidden" role="contentinfo" aria-label="About charity: water">
+        <div class="panel footer-panel">
+            <div class="footer-content">
+                <p class="footer-desc">
+                    Inspired by charity: water — learn more about their work or support clean water projects.
+                </p>
+                <div class="footer-links" aria-hidden="false">
+                    <a href="https://www.charitywater.org/" target="_blank" rel="noopener noreferrer">charity: water — Learn More</a>
+                    <a href="https://www.charitywater.org/donate" target="_blank" rel="noopener noreferrer" class="donate">Donate</a>
+                </div>
+            </div>
+            <small class="footer-note">This project is unofficial and for learning purposes.</small>
+        </div>
+    </footer>
+     
     <script src="script.js"></script>
 </body>
 </html>
